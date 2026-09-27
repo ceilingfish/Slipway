@@ -1,14 +1,91 @@
 {
   "name": "spec-plans",
+  "displayName": "Spec Plans",
   "version": "0.0.0",
   "private": true,
+  "publisher": "ceilingfish",
   "description": "Author, evolve and track specifications outside the repository, review their maturity and dispatch agents to build them.",
   "license": "UNLICENSED",
   "type": "module",
+  "main": "./dist/extension.cjs",
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "specPlans",
+          "title": "Spec Plans",
+          "icon": "resources/spec-plans.svg"
+        }
+      ]
+    },
+    "views": {
+      "specPlans": [
+        {
+          "id": "specPlans.specifications",
+          "name": "Specifications"
+        },
+        {
+          "id": "specPlans.maturity",
+          "name": "Maturity"
+        },
+        {
+          "id": "specPlans.criteria",
+          "name": "Non-functional Criteria"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "specPlans.registerRepository",
+        "title": "Register Repository",
+        "category": "Spec Plans"
+      },
+      {
+        "command": "specPlans.openRepositories",
+        "title": "Open repositories.yml",
+        "category": "Spec Plans"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "specPlans.specifications",
+        "when": "workspaceFolderCount == 0",
+        "contents": "Open a folder in a git repository to see its specifications."
+      },
+      {
+        "view": "specPlans.specifications",
+        "when": "specPlans.repositoryState == 'not-a-repository'",
+        "contents": "This folder isn't in a git repository, so Spec Plans can't find its specifications."
+      },
+      {
+        "view": "specPlans.specifications",
+        "when": "specPlans.repositoryState == 'unregistered'",
+        "contents": "This repository isn't registered with Spec Plans yet.\n[Register Repository](command:specPlans.registerRepository)"
+      },
+      {
+        "view": "specPlans.specifications",
+        "when": "specPlans.repositoryState == 'no-origin'",
+        "contents": "This repository has no origin remote, so Spec Plans can't map it to a folder automatically. Add an origin remote, or register it by hand in repositories.yml.\n[Open repositories.yml](command:specPlans.openRepositories)"
+      },
+      {
+        "view": "specPlans.specifications",
+        "when": "specPlans.repositoryState == 'invalid-registry'",
+        "contents": "repositories.yml can't be read. Fix it to see this repository's specifications.\n[Open repositories.yml](command:specPlans.openRepositories)"
+      }
+    ]
   },
   "scripts": {
+    "bundle": "esbuild src/extension/extension.ts --bundle --platform=node --format=cjs --target=node22 --external:vscode --outfile=dist/extension.cjs",
+    "build": "pnpm bundle --sourcemap",
+    "watch": "pnpm bundle --sourcemap --watch",
+    "package": "pnpm bundle --minify && vsce package --no-dependencies --skip-license",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --type-aware --deny-warnings",
     "lint:fix": "oxlint --type-aware --fix",
@@ -26,8 +103,14 @@
     "*.{json,jsonc,md,yml,yaml,css,html}": "prettier --write"
   },
   "packageManager": "pnpm@10.30.3",
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "@types/vscode": "~1.100.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "oxlint": "^1.85.0",
