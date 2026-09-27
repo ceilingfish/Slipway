@@ -102,6 +102,15 @@ export class ClaudeRun implements Execution {
     });
   }
 
+  #notify(listener: (entry: LogEntry) => void, entry: LogEntry): void {
+    try {
+      listener(entry);
+    } catch (error) {
+      // One broken subscriber mustn't stop the log reaching the others.
+      this.settings.log(`A log listener failed: ${String(error)}`);
+    }
+  }
+
   #onLine(line: string): void {
     const parsed = parseStreamLine(line);
     if (parsed.init !== undefined && parsed.init.permissionMode !== "auto") {
@@ -115,7 +124,7 @@ export class ClaudeRun implements Execution {
     for (const entry of parsed.entries) {
       this.#entries.push(entry);
       for (const listener of this.#listeners) {
-        listener(entry);
+        this.#notify(listener, entry);
       }
     }
   }

@@ -102,17 +102,23 @@ const freezeTree = async (root: number, frozen = new Set<number>()): Promise<num
 };
 
 const killPosixTree = async (root: number, graceMs: number): Promise<void> => {
+  const frozen = new Set<number>();
   signal(root, "SIGSTOP");
-  // Snapshot the tree while the root is alive: once a parent dies its children
-  // are re-parented to init and can no longer be found from the root.
-  const descendants = await freezeTree(root);
-  // The root gets no chance to shut down, since it could start more processes
-  // doing so. Its descendants (the agent's commands) get SIGTERM first.
-  signal(root, "SIGKILL");
-  for (const pid of descendants) {
-    signal(pid, "SIGTERM");
-    signal(pid, "SIGCONT");
+  try {
+    // Snapshot the tree while the root is alive: once a parent dies its
+    // children are re-parented to init and can no longer be found from it.
+    await freezeTree(root, frozen);
+  } finally {
+    // Even if the tree couldn't be listed, nothing may be left stopped. The
+    // root gets no chance to shut down, since it could start more processes
+    // doing so. Its descendants (the agent's commands) get SIGTERM first.
+    signal(root, "SIGKILL");
+    for (const pid of frozen) {
+      signal(pid, "SIGTERM");
+      signal(pid, "SIGCONT");
+    }
   }
+  const descendants = [...frozen];
   if (await waitForExit(descendants, graceMs)) {
     return;
   }

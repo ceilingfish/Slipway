@@ -143,6 +143,20 @@ describe.skipIf(process.platform === "win32")("ClaudeCli", () => {
     expect(run.entries).toEqual(streamed);
   });
 
+  it("keeps streaming to other listeners when one throws", async () => {
+    const run = cli({ FAKE_OUTPUT: fixture("tools-run.jsonl") }).start({ cwd: dir, prompt: "p" });
+    run.onEntry(() => {
+      throw new Error("broken view");
+    });
+    const streamed: LogEntry[] = [];
+    run.onEntry((entry) => streamed.push(entry));
+
+    expect((await run.done).status).toBe("finished");
+    expect(streamed).toHaveLength(9);
+    expect(run.entries).toHaveLength(9);
+    expect(messages).toContain("A log listener failed: Error: broken view");
+  });
+
   it("resumes a session", async () => {
     const run = cli({ FAKE_OUTPUT: fixture("resumed-run.jsonl") }).start({
       cwd: dir,
