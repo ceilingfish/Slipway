@@ -1,0 +1,6 @@
+dist/
+out/
+coverage/
+.vscode-test/
+pnpm-lock.yaml
+docs/plugin-design.zip

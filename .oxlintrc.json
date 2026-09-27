@@ -1,0 +1,129 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "unicorn", "oxc", "node", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "env": {
+    "node": true,
+    "es2024": true
+  },
+  "ignorePatterns": ["dist/**", "out/**", "coverage/**", ".vscode-test/**", "docs/**"],
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/require-await": "error",
+    "typescript/return-await": ["error", "in-try-catch"],
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/strict-boolean-expressions": "error",
+    "typescript/no-unnecessary-condition": "error",
+    "typescript/prefer-nullish-coalescing": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/explicit-module-boundary-types": "error",
+
+    "import/no-cycle": "error",
+    "import/no-self-import": "error",
+    "import/no-default-export": "error",
+
+    "no-console": "error",
+    "eqeqeq": "error",
+    "complexity": ["error", 15],
+    "max-depth": ["error", 4],
+    "max-params": ["error", 4],
+    "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }],
+    "max-lines-per-function": [
+      "error",
+      { "max": 80, "skipBlankLines": true, "skipComments": true }
+    ],
+
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "child_process",
+            "message": "Spawn processes only from src/execution/."
+          },
+          {
+            "name": "node:child_process",
+            "message": "Spawn processes only from src/execution/."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/core/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "vscode", "message": "src/core/ is pure domain logic: no VS Code API." },
+              { "name": "child_process", "message": "Spawn processes only from src/execution/." },
+              {
+                "name": "node:child_process",
+                "message": "Spawn processes only from src/execution/."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["**/extension/**", "**/execution/**"],
+                "message": "src/core/ must not depend on src/extension/ or src/execution/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/execution/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "vscode", "message": "src/execution/ must not use the VS Code API." }
+            ],
+            "patterns": [
+              {
+                "group": ["**/extension/**"],
+                "message": "src/execution/ must not depend on src/extension/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "test/**"],
+      "rules": {
+        "max-lines-per-function": "off",
+        "max-lines": "off",
+        "typescript/no-non-null-assertion": "off"
+      }
+    },
+    {
+      "files": ["*.config.ts", "*.config.mjs", "*.config.js"],
+      "rules": {
+        "import/no-default-export": "off"
+      }
+    }
+  ]
+}

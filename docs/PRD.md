@@ -60,12 +60,12 @@ Spec context menu: **Plan tasks**, **Review maturity**, **Open spec**.
 
 ### Tasks
 
-| Icon | State |
-| --- | --- |
+| Icon                          | State                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
 | `circle-large-outline` (grey) | Pending. No worktree exists: either never started, or its worktree has since been removed. |
-| `loading` (spinning) | An agent session is running |
-| `git-branch` (blue) | Has a worktree, no agent running. Description shows the branch. |
-| `pass` (green) | Complete: its branch has been detected as merged into main, or the user marked it complete |
+| `loading` (spinning)          | An agent session is running                                                                |
+| `git-branch` (blue)           | Has a worktree, no agent running. Description shows the branch.                            |
+| `pass` (green)                | Complete: its branch has been detected as merged into main, or the user marked it complete |
 
 Task labels are **yellow** when the task was altered during replanning and hasn't been run since, and **white** otherwise.
 
@@ -102,11 +102,11 @@ Opens in an editor tab, e.g. "Review: design-completeness". It shows:
 
 Lists the resolved criteria for the current repository. Title bar actions: **Add**, **Refresh**. Clicking a criterion opens its markdown in an editor tab.
 
-| Icon | Meaning |
-| --- | --- |
-| `globe` | Global criterion |
-| `repo` | Repository criterion, either an override of a global one or repository-only |
-| `circle-slash` (greyed) | Disabled, either everywhere or for this repository |
+| Icon                    | Meaning                                                                     |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `globe`                 | Global criterion                                                            |
+| `repo`                  | Repository criterion, either an override of a global one or repository-only |
+| `circle-slash` (greyed) | Disabled, either everywhere or for this repository                          |
 
 Context menu:
 
@@ -260,11 +260,11 @@ Design completeness and edge case coverage are themselves criteria (`design-comp
 
 A review gives each criterion one of four statuses, with evidence:
 
-| Status | Meaning |
-| --- | --- |
-| **met** | The spec satisfies the criterion |
-| **partial** | The spec addresses the criterion, with gaps |
-| **missing** | The spec doesn't address the criterion |
+| Status           | Meaning                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| **met**          | The spec satisfies the criterion                               |
+| **partial**      | The spec addresses the criterion, with gaps                    |
+| **missing**      | The spec doesn't address the criterion                         |
 | **inapplicable** | The criterion doesn't apply to this spec, with a justification |
 
 The spec row in the Specifications view shows its weakest criterion (e.g. "weakest: edge cases"). A spec is **ready to plan** when no criterion is missing. This is a hint only: **Plan tasks** is always available.
@@ -328,8 +328,18 @@ The planner is prompted with the spec, its existing tasks and the conversation s
 {
   "message": "Split dunning-schedule into dunning-config and dunning-job. The job reads its intervals from the config table, so it comes second.",
   "tasks": [
-    { "serial": 1, "name": "dunning-config", "summary": "Table and admin settings for retry intervals per plan.", "body": "…task spec in markdown…" },
-    { "serial": null, "name": "dunning-job", "summary": "Scheduled job that finds overdue invoices and applies the dunning schedule.", "body": "…" }
+    {
+      "serial": 1,
+      "name": "dunning-config",
+      "summary": "Table and admin settings for retry intervals per plan.",
+      "body": "…task spec in markdown…"
+    },
+    {
+      "serial": null,
+      "name": "dunning-job",
+      "summary": "Scheduled job that finds overdue invoices and applies the dunning schedule.",
+      "body": "…"
+    }
   ]
 }
 ```
