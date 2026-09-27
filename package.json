@@ -1,14 +1,52 @@
 {
   "name": "spec-plans",
+  "displayName": "Spec Plans",
   "version": "0.0.0",
   "private": true,
+  "publisher": "ceilingfish",
   "description": "Author, evolve and track specifications outside the repository, review their maturity and dispatch agents to build them.",
   "license": "UNLICENSED",
   "type": "module",
+  "main": "./dist/extension.cjs",
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "specPlans",
+          "title": "Spec Plans",
+          "icon": "resources/spec-plans.svg"
+        }
+      ]
+    },
+    "views": {
+      "specPlans": [
+        {
+          "id": "specPlans.specifications",
+          "name": "Specifications"
+        },
+        {
+          "id": "specPlans.maturity",
+          "name": "Maturity"
+        },
+        {
+          "id": "specPlans.criteria",
+          "name": "Non-functional Criteria"
+        }
+      ]
+    }
   },
   "scripts": {
+    "bundle": "esbuild src/extension/extension.ts --bundle --platform=node --format=cjs --target=node22 --external:vscode --outfile=dist/extension.cjs",
+    "build": "pnpm bundle --sourcemap",
+    "watch": "pnpm bundle --sourcemap --watch",
+    "package": "pnpm bundle --minify && vsce package --no-dependencies --skip-license",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --type-aware --deny-warnings",
     "lint:fix": "oxlint --type-aware --fix",
@@ -26,8 +64,14 @@
     "*.{json,jsonc,md,yml,yaml,css,html}": "prettier --write"
   },
   "packageManager": "pnpm@10.30.3",
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "@types/vscode": "~1.100.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "oxlint": "^1.85.0",
