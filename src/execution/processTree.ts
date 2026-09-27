@@ -15,19 +15,24 @@ export const descendantsOf = (
 ): number[] => {
   const children = new Map<number, number[]>();
   for (const [pid, parent] of processes) {
-    children.set(parent, [...(children.get(parent) ?? []), pid]);
+    const siblings = children.get(parent);
+    if (siblings === undefined) {
+      children.set(parent, [pid]);
+    } else {
+      siblings.push(pid);
+    }
   }
-  const found: number[] = [];
+  const found = new Set<number>();
   const pending = [root];
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
     for (const child of children.get(next) ?? []) {
-      if (child !== root && !found.includes(child)) {
-        found.push(child);
+      if (child !== root && !found.has(child)) {
+        found.add(child);
         pending.push(child);
       }
     }
   }
-  return found;
+  return [...found];
 };
 
 /** Parses `ps -A -o pid= -o ppid=` output into `[pid, parentPid]` pairs. */
@@ -54,7 +59,8 @@ const signal = (pid: number, name: NodeJS.Signals): void => {
   }
 };
 
-const isAlive = (pid: number): boolean => {
+/** Whether a process exists (and may be signalled). */
+export const isAlive = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
     return true;
@@ -83,15 +89,16 @@ const waitForExit = async (pids: readonly number[], timeoutMs: number): Promise<
  * Claude only starts a tool's shell once the command has been approved, which
  * can be after it has been asked to exit.
  */
-const freezeTree = async (root: number, frozen: readonly number[] = []): Promise<number[]> => {
-  const found = descendantsOf(root, await listProcesses()).filter((pid) => !frozen.includes(pid));
+const freezeTree = async (root: number, frozen = new Set<number>()): Promise<number[]> => {
+  const found = descendantsOf(root, await listProcesses()).filter((pid) => !frozen.has(pid));
   if (found.length === 0) {
     return [...frozen];
   }
   for (const pid of found) {
     signal(pid, "SIGSTOP");
+    frozen.add(pid);
   }
-  return freezeTree(root, [...frozen, ...found]);
+  return freezeTree(root, frozen);
 };
 
 const killPosixTree = async (root: number, graceMs: number): Promise<void> => {
@@ -109,10 +116,13 @@ const killPosixTree = async (root: number, graceMs: number): Promise<void> => {
   if (await waitForExit(descendants, graceMs)) {
     return;
   }
-  const processes = await listProcesses();
+  // Freeze what's left before killing it, so nothing it starts gets away.
   const survivors = descendants.filter(isAlive);
-  const late = survivors.flatMap((pid) => descendantsOf(pid, processes));
-  for (const pid of [...survivors, ...late]) {
+  for (const pid of survivors) {
+    signal(pid, "SIGSTOP");
+  }
+  const late = await Promise.all(survivors.map(async (pid) => freezeTree(pid)));
+  for (const pid of [...survivors, ...late.flat()]) {
     signal(pid, "SIGKILL");
   }
 };
@@ -130,6 +140,5 @@ const killWindowsTree = async (root: number): Promise<void> => {
  * killed outright, and each of its descendants gets SIGTERM, then SIGKILL if
  * it's still running after `graceMs`.
  */
-export const killProcessTree = async (root: number, graceMs: number): Promise<void> => {
-  await (process.platform === "win32" ? killWindowsTree(root) : killPosixTree(root, graceMs));
-};
+export const killProcessTree = async (root: number, graceMs: number): Promise<void> =>
+  process.platform === "win32" ? killWindowsTree(root) : killPosixTree(root, graceMs);

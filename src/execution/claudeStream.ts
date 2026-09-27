@@ -4,6 +4,8 @@
  * Claude Code 2.1.206 (see fixtures/):
  *
  * - `{type:"system", subtype:"init", session_id, permissionMode, ...}` first
+ *   (the session id is set up front with `--session-id`, so only the
+ *   permission mode is used)
  * - `{type:"assistant", message:{content:[...]}}` with `text`, `thinking` and
  *   `tool_use` ({id, name, input}) blocks
  * - `{type:"user", message:{content:[...]}}` with `tool_result` blocks
@@ -21,7 +23,7 @@ export interface StreamResult {
 
 export interface ParsedLine {
   readonly entries: readonly LogEntry[];
-  readonly init?: { readonly sessionId: string; readonly permissionMode: string | undefined };
+  readonly init?: { readonly permissionMode: string | undefined };
   readonly result?: StreamResult;
 }
 
@@ -115,16 +117,10 @@ const parseResult = (event: JsonObject): ParsedLine => {
   };
 };
 
-const parseInit = (event: JsonObject): ParsedLine => {
-  const sessionId = stringField(event, "session_id");
-  if (sessionId === undefined) {
-    return { entries: [] };
-  }
-  return {
-    entries: [],
-    init: { sessionId, permissionMode: stringField(event, "permissionMode") },
-  };
-};
+const parseInit = (event: JsonObject): ParsedLine => ({
+  entries: [],
+  init: { permissionMode: stringField(event, "permissionMode") },
+});
 
 const parseEvent = (event: JsonObject): ParsedLine => {
   switch (event["type"]) {
@@ -151,7 +147,7 @@ export const parseStreamLine = (line: string): ParsedLine => {
   try {
     event = JSON.parse(trimmed);
   } catch {
-    return { entries: [{ kind: "unparsed", text: trimmed }] };
+    event = undefined;
   }
   return isObject(event) ? parseEvent(event) : { entries: [{ kind: "unparsed", text: trimmed }] };
 };

@@ -3,7 +3,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { setTimeout as delay } from "node:timers/promises";
 import type { LogEntry } from "../core/agentLog";
 import { ClaudeCli } from "./claudeCli";
 
@@ -13,17 +12,6 @@ const sleeping = (): string[] =>
   execFileSync("ps", ["-A", "-o", "command="], { encoding: "utf8" })
     .split("\n")
     .filter((command) => command.trim() === SLEEP);
-
-const waitFor = async (check: () => boolean, attempts = 600): Promise<void> => {
-  if (check()) {
-    return;
-  }
-  if (attempts <= 0) {
-    throw new Error("timed out");
-  }
-  await delay(100);
-  await waitFor(check, attempts - 1);
-};
 
 // Runs the real `claude` CLI, which costs usage. Opt in with:
 //   SPEC_PLANS_CLAUDE_SMOKE=1 pnpm test claudeCli.smoke
@@ -71,11 +59,11 @@ describe.runIf(process.env["SPEC_PLANS_CLAUDE_SMOKE"] === "1")("ClaudeCli with r
       cwd: dir,
       prompt: `Run the shell command \`${SLEEP}\` in the foreground, then say done.`,
     });
-    await waitFor(() => sleeping().length > 0);
+    await expect.poll(() => sleeping().length, { timeout: 60_000 }).toBeGreaterThan(0);
 
     run.cancel();
 
     expect((await run.done).status).toBe("cancelled");
-    await waitFor(() => sleeping().length === 0);
+    await expect.poll(() => sleeping().length, { timeout: 10_000 }).toBe(0);
   }, 180_000);
 });

@@ -17,9 +17,9 @@ describe("parseStreamLine", () => {
   describe("a run that reads, writes, edits and runs a command", () => {
     const lines = parseFixture("tools-run.jsonl");
 
-    it("reports the session from the init event", () => {
+    it("reports the permission mode from the init event", () => {
       expect(lines.map((line) => line.init).filter((init) => init !== undefined)).toEqual([
-        { sessionId: "a854db5c-e9ed-4556-9fa4-b9878b75e000", permissionMode: "auto" },
+        { permissionMode: "auto" },
       ]);
     });
 
@@ -73,9 +73,8 @@ describe("parseStreamLine", () => {
     });
   });
 
-  it("reports a resumed session under its original id", () => {
+  it("parses a resumed session", () => {
     const lines = parseFixture("resumed-run.jsonl");
-    expect(lines[0]?.init?.sessionId).toBe("a854db5c-e9ed-4556-9fa4-b9878b75e000");
     expect(entriesOf(lines)).toEqual([{ kind: "commentary", text: "two" }]);
     expect(lines.at(-2)?.result).toEqual({ isError: false, text: "two" });
   });

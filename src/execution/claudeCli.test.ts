@@ -1,13 +1,13 @@
 import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { LogEntry } from "../core/agentLog";
 import type { Execution } from "../core/execution";
 import { ClaudeCli, type ClaudeCliOptions, claudeArgs } from "./claudeCli";
 import { outcomeOf } from "./claudeRun";
+import { isAlive } from "./processTree";
 
 const fixture = (name: string): string =>
   fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
@@ -46,15 +46,6 @@ const isRecorded = (value: unknown): value is Recorded =>
   Array.isArray(value.args) &&
   "stdin" in value &&
   typeof value.stdin === "string";
-
-const isAlive = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 const firstEntry = async (run: Execution): Promise<LogEntry> =>
   new Promise((resolve) => {
@@ -226,8 +217,7 @@ describe.skipIf(process.platform === "win32")("ClaudeCli", () => {
 
     expect(await run.done).toEqual({ status: "cancelled", sessionId: "new-session" });
     expect(run.status).toBe("cancelled");
-    await delay(100);
-    expect(isAlive(grandchild)).toBe(false);
+    await expect.poll(() => isAlive(grandchild)).toBe(false);
   });
 
   it("ignores cancel once a run has ended", async () => {
