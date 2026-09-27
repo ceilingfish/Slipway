@@ -35,7 +35,7 @@ The extension adds a **Spec Plans** container to the activity bar (left hand sid
 2. **Maturity** - the latest review of the selected spec
 3. **Non-functional Criteria** - the resolved criteria for the current repository
 
-It also adds two editors: the **planning editor** and the **agent log**.
+It also adds three editors: the **review result**, the **planning editor** and the **agent log**.
 
 The extension must resolve worktrees to their main repository, so that every worktree of a repository shows the same set of specifications.
 
@@ -85,7 +85,18 @@ It is deliberately hard to remove a task that has been started. A task can only 
 
 Follows the selection in the Specifications view. Title bar actions: **Review** (`sparkle`), **History**, and a more menu.
 
-Shows who reviewed the spec and when (e.g. "Reviewed 2 days ago by claude"), then one row per enabled criterion with a status icon and a short result, e.g. "met", "60% · 2 gaps", "4 of 9 covered".
+Shows who reviewed the spec and when (e.g. "Reviewed 2 days ago by claude"), then one row per enabled criterion with its status icon and a short result, e.g. "met", "partial · 2 gaps", "missing · 5 gaps". (The design's "60%" and "4 of 9 covered" predate the decision to use statuses rather than scores.)
+
+**Review maturity**, from the spec's context menu or this view's title bar, reviews the spec against every enabled criterion. The spec shows a spinner until the review finishes, then this view updates. Double-clicking a criterion opens its review result.
+
+## Review result
+
+Opens in an editor tab, e.g. "Review: design-completeness". It shows:
+
+- The spec, when it was reviewed and by whom
+- The criterion name and a status badge: **Met** (green), **Partial** (yellow), **Missing** (red), **Not applicable** (grey)
+- A summary: one or two sentences on how well the spec complies
+- The detailed findings, grouped into **Gaps** and **Covered**. Each finding has a title, a location in the spec (e.g. "§2 Retry policy", "openapi.yaml") and a description.
 
 ## Non-functional Criteria view
 
@@ -237,8 +248,6 @@ An agent reviews a spec against every enabled criterion and reports:
 - How complete the concept is. Compared to the codebase, what aspects are missing?
 - Which edge cases have not been considered
 
-One capability should be "extract an API", which produces an OpenAPI spec attached to the plan.
-
 ### Maturity
 
 Maturity is the core idea of this tool. It is made up of:
@@ -260,6 +269,47 @@ A review gives each criterion one of four statuses, with evidence:
 
 The spec row in the Specifications view shows its weakest criterion (e.g. "weakest: edge cases"). A spec is **ready to plan** when no criterion is missing. This is a hint only: **Plan tasks** is always available.
 
+### Review format
+
+Each review is stored as a JSON file in the spec's `reviews/` folder, named by the time it was run. The latest one is what the Maturity view shows; the rest are its history.
+
+```json
+{
+  "reviewedAt": "2026-09-25T14:02:00Z",
+  "reviewer": "claude",
+  "documents": {
+    "spec.md": "sha256:…",
+    "openapi.yaml": "sha256:…"
+  },
+  "criteria": [
+    {
+      "criterion": "design-completeness",
+      "status": "partial",
+      "summary": "The spec fully describes the retry flow, request signing and API, but leaves two decisions open.",
+      "findings": [
+        {
+          "kind": "gap",
+          "title": "Backoff state storage",
+          "location": "§2 Retry policy",
+          "detail": "Retries back off exponentially, but the spec does not say where attempt counts are stored."
+        },
+        {
+          "kind": "covered",
+          "title": "Request signing",
+          "location": "§3 Security",
+          "detail": "HMAC signature header, key rotation and timestamp tolerance are defined."
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `status` is one of `met`, `partial`, `missing` or `inapplicable`. For `inapplicable`, the summary is the justification.
+- `documents` records a hash of every document that was reviewed. A document whose current hash differs is shown in yellow ("changed since last review").
+
+The reviewer is prompted with the spec, its attached documents and every enabled criterion, and must return the `criteria` array in this format. The extension adds `reviewedAt`, `reviewer` and `documents`.
+
 ## Planning
 
 **Plan tasks** opens the planning editor, which breaks the spec down into tasks. Accepting the plan creates the tasks and moves the spec to Planning.
@@ -269,6 +319,22 @@ Each task has:
 - A serial number and a name (e.g. `03-cli-login`). The serial is fixed once the plan is accepted; new tasks get the next free serial.
 - A description of the deliverable
 - A version, incremented every time the task changes
+
+### Planner output
+
+The planner is prompted with the spec, its existing tasks and the conversation so far. Each reply contains a message for the conversation and the full proposed task list:
+
+```json
+{
+  "message": "Split dunning-schedule into dunning-config and dunning-job. The job reads its intervals from the config table, so it comes second.",
+  "tasks": [
+    { "serial": 1, "name": "dunning-config", "summary": "Table and admin settings for retry intervals per plan.", "body": "…task spec in markdown…" },
+    { "serial": null, "name": "dunning-job", "summary": "Scheduled job that finds overdue invoices and applies the dunning schedule.", "body": "…" }
+  ]
+}
+```
+
+A task with a `serial` redefines that existing task. A task with a `null` serial is new, and is given the next free serial when the plan is accepted. The planner can't drop a started task; if its proposal omits one, the extension keeps it unchanged.
 
 ### Replanning
 
@@ -284,6 +350,8 @@ Starting a task:
 2. Runs the task's execution strategy headless in that worktree. The spec and the current version of the task are supplied to the agent as context.
 3. Records the run: the task version, start and end time, final status and the agent log.
 
+A task shows as running for as long as the agent session is running. Cancel stops the session. Closing VS Code kills any running agents; their runs are recorded as cancelled.
+
 ### Worktrees
 
 Task worktrees are created in the parent directory of the main worktree, named `<repository-folder>-<spec-slug>-<serial>-<task-name>`. For example, a repository checked out at `~/Code/ceilingfish/SpecDesignPlugin` with task `01-initial-task` of spec `example-spec` gets:
@@ -296,9 +364,9 @@ Task worktrees are created in the parent directory of the main worktree, named `
 
 The extension only creates the worktree. It doesn't install dependencies or run any other setup; the agent does whatever setup the task needs.
 
-A task shows as running for as long as the agent session is running. Cancel stops the session. Closing VS Code kills any running agents; their runs are recorded as cancelled.
+A task is **complete** when its branch is detected as merged into main (`git branch --merged main`), or when the user marks it complete. Git can't detect squash or rebase merges, so **Mark complete** is the normal route; automatic detection is a bonus. A spec is **complete** when all of its tasks are complete.
 
-A task is **complete** when its branch is detected as merged into main, or when the user marks it complete. A spec is **complete** when all of its tasks are complete.
+A task whose worktree has been removed is checked for a merge first: if its branch is merged it is complete, otherwise it returns to pending.
 
 ### Execution strategies
 
@@ -310,10 +378,7 @@ Reviews and the planner also run through ClaudeCli, so there is one place that d
 
 # Open Questions
 
-- **Review output format**: how per-criterion results and their evidence are structured and stored in `reviews/`
 - **skills.sh**: which existing skills (e.g. triage) could be reused for reviews
-- **Detecting merges**: `git branch --merged` can't detect squash or rebase merges, so automatic detection may rarely fire. Is Mark complete enough, or should the extension ask GitHub via `gh`?
-- **Removed worktrees**: if a task's worktree is removed after its branch has been merged, the task should be complete, not pending
 
 # Appendix: AI Integration Mechanisms
 
@@ -372,7 +437,7 @@ The extension registers a chat participant (e.g. `@spec`) using the models VS Co
 
 ## F. Claude Code plugin (skills + commands)
 
-Ship a companion Claude Code plugin with skills such as `review-spec`, `plan-spec`, `extract-api`.
+Ship a companion Claude Code plugin with skills such as `review-spec` and `plan-spec`.
 
 | Advantages                                                           | Disadvantages                                  |
 | -------------------------------------------------------------------- | ---------------------------------------------- |
@@ -381,4 +446,4 @@ Ship a companion Claude Code plugin with skills such as `review-spec`, `plan-spe
 
 ## Recommendation
 
-**B + C**: an MCP server as the single interface to specs, criteria and reviews (keeping storage and git commits in one place, and usable by any agent), with the extension using a configurable headless agent CLI to trigger reviews and dispatch tasks into worktrees. F can be layered on top later to package the review and planning prompts for Claude.
+**Decided: C only, for now.** The extension runs the `claude` CLI headless (the ClaudeCli execution strategy) and injects the spec, task and criteria into the prompt. An MCP server (B) may be added later if agents need to read or update specs themselves.
