@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -55,9 +55,11 @@ describe.runIf(process.env["SPEC_PLANS_CLAUDE_SMOKE"] === "1")("ClaudeCli with r
   }, 180_000);
 
   it("cancels a running agent, and the command it is running", async () => {
+    // Claude Code refuses a bare `sleep`, so the command is a script.
+    await writeFile(join(dir, "wait.sh"), `${SLEEP}\n`);
     const run = cli.start({
       cwd: dir,
-      prompt: `Run the shell command \`${SLEEP}\` in the foreground, then say done.`,
+      prompt: "Run the shell command `sh wait.sh` in the foreground, then say done.",
     });
     await expect.poll(() => sleeping().length, { timeout: 60_000 }).toBeGreaterThan(0);
 
