@@ -114,7 +114,7 @@ Context menu:
 
 The tree view only changes when the plan is accepted.
 
-The design shows a new planning session, where no tasks exist yet. When replanning a spec that already has tasks, tasks with a worktree are locked: they can't be edited, deleted, merged or reordered. New tasks can still be added.
+The design shows a new planning session, where no tasks exist yet. When replanning a spec that already has tasks, started tasks keep their position and serial, and can't be deleted or merged. They can still be redefined, which creates a new version that can then be run again. New tasks can be added.
 
 ## Agent log
 
@@ -249,7 +249,16 @@ Maturity is the core idea of this tool. It is made up of:
 
 Design completeness and edge case coverage are themselves criteria (`design-completeness.md`, `edge-cases.md`), so they can be overridden or disabled like any other. Maturity is the result of reviewing a spec against every enabled criterion.
 
-The precise definition of maturity (scale, how each criterion is scored) is still to be defined. See Open Questions.
+A review gives each criterion one of four statuses, with evidence:
+
+| Status | Meaning |
+| --- | --- |
+| **met** | The spec satisfies the criterion |
+| **partial** | The spec addresses the criterion, with gaps |
+| **missing** | The spec doesn't address the criterion |
+| **inapplicable** | The criterion doesn't apply to this spec, with a justification |
+
+The spec row in the Specifications view shows its weakest criterion (e.g. "weakest: edge cases"). A spec is **ready to plan** when no criterion is missing. This is a hint only: **Plan tasks** is always available.
 
 ## Planning
 
@@ -263,7 +272,7 @@ Each task has:
 
 ### Replanning
 
-Replanning a spec that already has tasks does not delete them. The planner alters existing tasks with the extended context, and each altered task gets a new version. Tasks with a worktree are locked and can't be altered; new tasks can be added.
+Replanning a spec that already has tasks does not delete them. The planner alters existing tasks with the extended context, and each altered task gets a new version. A redefined task can be run again against its new version, in its existing worktree. New tasks can be added.
 
 Every replan and every run is recorded, so the tool can show when a task has been replanned after it was executed, and which version of the task each run was against.
 
@@ -271,9 +280,21 @@ Every replan and every run is recorded, so the tool can show when a task has bee
 
 Starting a task:
 
-1. Creates a worktree with `lumberjack worktree add <branch>`, where the branch is `feature/<spec-slug>-<serial>-<task-name>`, e.g. `feature/oauth-device-flow-03-cli-login`. Lumberjack puts the worktree in its conventional location, runs the repository's setup steps from `.lumberjack.yml`, and creates the branch off the default branch if it doesn't already exist. This only happens the first time a task is started; later runs reuse the worktree.
+1. Creates a branch named `feature/<spec-slug>-<serial>-<task-name>`, e.g. `feature/oauth-device-flow-03-cli-login`, off `main`, and a git worktree on that branch (`git worktree add`). This only happens the first time a task is started; later runs reuse the worktree.
 2. Runs the task's execution strategy headless in that worktree. The spec and the current version of the task are supplied to the agent as context.
 3. Records the run: the task version, start and end time, final status and the agent log.
+
+### Worktrees
+
+Task worktrees are created in the parent directory of the main worktree, named `<repository-folder>-<spec-slug>-<serial>-<task-name>`. For example, a repository checked out at `~/Code/ceilingfish/SpecDesignPlugin` with task `01-initial-task` of spec `example-spec` gets:
+
+```
+~/Code/ceilingfish/
+  SpecDesignPlugin/                                  # main worktree
+  SpecDesignPlugin-example-spec-01-initial-task/     # task worktree
+```
+
+The extension only creates the worktree. It doesn't install dependencies or run any other setup; the agent does whatever setup the task needs.
 
 A task shows as running for as long as the agent session is running. Cancel stops the session. Closing VS Code kills any running agents; their runs are recorded as cancelled.
 
@@ -289,13 +310,10 @@ Reviews and the planner also run through ClaudeCli, so there is one place that d
 
 # Open Questions
 
-- **Maturity definition**: what scale, and how each criterion is scored
-- **Review output format**: how per-criterion results (met / partial / missing / not applicable, with evidence) are structured and stored in `reviews/`
+- **Review output format**: how per-criterion results and their evidence are structured and stored in `reviews/`
 - **skills.sh**: which existing skills (e.g. triage) could be reused for reviews
-- **Detecting merges**: `git branch --merged` can't detect squash or rebase merges. Lumberjack already tracks PRs; can it report that a branch's PR has been merged?
-- **Locked tasks vs versioning**: tasks with a worktree can't be altered, so which tasks can replanning give a new version to?
-- **Worktrees removed by lumberjack**: if lumberjack removes a worktree after its PR merges, the task must become complete, not pending
-- **Repositories not tracked by lumberjack**: should Start run `lumberjack init`, or refuse and ask the user to register the repository?
+- **Detecting merges**: `git branch --merged` can't detect squash or rebase merges, so automatic detection may rarely fire. Is Mark complete enough, or should the extension ask GitHub via `gh`?
+- **Removed worktrees**: if a task's worktree is removed after its branch has been merged, the task should be complete, not pending
 
 # Appendix: AI Integration Mechanisms
 
