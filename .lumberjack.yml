@@ -1,0 +1,7 @@
+steps:
+  - type: run-command
+    run_command:
+      command: mise install
+  - type: run-command
+    run_command:
+      command: pnpm install
