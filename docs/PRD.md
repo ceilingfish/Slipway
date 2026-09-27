@@ -27,7 +27,16 @@ This is a VS Code extension that lets me author, evolve and track specifications
 
 # User Interface
 
-Designs: [plugin-design.zip](plugin-design.zip) (`Spec Tree View.dc.html`).
+Designs: [plugin-design.zip](plugin-design.zip) (`Spec Tree View.dc.html`). The designs show layout, icons and colours. Where they disagree with this document, this document wins. The designs predate some decisions, and ignore these parts of them:
+
+- Branches named `spec/…` (see Execution for branch names)
+- "N of M dispatched" descriptions, on specs and on the Tasks node
+- Showing _Plan tasks_ as what moves a spec to Planning (accepting the plan does)
+- Task and criterion menus without **Mark complete**, **Remove** and **Enable**
+- Scores such as "60%" and "4 of 9 covered" in the Maturity view
+- "split" tags on planned tasks and change chips in the planner conversation
+- Failure reasons on runs in the agent log (e.g. "failed: tests")
+- The more (`ellipsis`) menu in the Maturity view's title bar
 
 The extension adds a **Spec Plans** container to the activity bar (left hand side) with three views:
 
@@ -47,12 +56,12 @@ Specs are shown in a single flat list and never move between groups. Each spec r
 
 - An icon for its phase: 💡 `lightbulb` Design, `list-tree` Planning, 🚀 `rocket` Execution, ✓ `pass` Complete
 - A spinner (`loading`) instead while a review is running
-- A description summarising its state, e.g. "weakest: edge cases", "3 tasks planned", "2 of 4 running", "complete"
+- A description summarising its state, e.g. "weakest: edge cases", "ready to plan", "3 tasks planned", "2 of 4 running", "complete". "2 of 4 running" counts tasks with an agent session running now; tasks can be started in any order.
 
 Expanding a spec shows:
 
-- `spec.md` and any attached documents (e.g. `openapi.yaml`)
-- A **Tasks** node, once the spec has been planned, with a **Run all** action that starts every task that isn't running
+- `spec.md` and any attached documents (e.g. `openapi.yaml`), each with the icon for its file type
+- A **Tasks** node (`checklist` icon, no description), once the spec has been planned, with a **Run all** (`run-all`) action that starts every task that isn't running
 
 Document labels are coloured by review state: **white** when the document hasn't changed since its last review, **yellow** when it has been edited since.
 
@@ -83,7 +92,7 @@ It is deliberately hard to remove a task that has been started. A task can only 
 
 ## Maturity view
 
-Follows the selection in the Specifications view. Title bar actions: **Review** (`sparkle`), **History**, and a more menu.
+Follows the selection in the Specifications view. Title bar actions: **Review** (`sparkle`) and **History**.
 
 Shows who reviewed the spec and when (e.g. "Reviewed 2 days ago by claude"), then one row per enabled criterion with its status icon and a short result, e.g. "met", "partial · 2 gaps", "missing · 5 gaps". (The design's "60%" and "4 of 9 covered" predate the decision to use statuses rather than scores.)
 
@@ -122,6 +131,7 @@ Context menu:
 - **Left:** the proposed tasks, in order. Each can be opened in its own editor (pencil), deleted (bin), or dragged to reorder. **New task** adds a task at the end. Selected tasks can be merged.
 - **Right:** a conversation with the planner, which can split, merge or rewrite tasks when asked.
 - The header shows the number of proposed tasks and the plan revision, with an **Accept plan** button.
+- Tasks aren't labelled with how the planner changed them (e.g. split or merged), and the conversation shows only the messages. The planner's message explains its changes.
 
 The tree view only changes when the plan is accepted.
 
@@ -131,8 +141,8 @@ The design shows a new planning session, where no tasks exist yet. When replanni
 
 **View Log** opens the agent log for a task in an editor tab.
 
-- **Left:** every run of the task, with its status (running, cancelled, failed, finished) and when it started
-- **Right:** the selected run's log (reads, edits, commands, output, the agent's commentary) with a **Cancel** button while it's running
+- **Left:** every run of the task, with its status (running, cancelled, failed, finished) and when it started. The status is all the tool reports about a run: there is no failure reason.
+- **Right:** the selected run's log, exactly as the agent reported it (reads, edits, commands, output, the agent's commentary), with a **Cancel** button while it's running
 
 Logs are kept on disk but not committed (see Storage).
 
@@ -267,7 +277,7 @@ A review gives each criterion one of four statuses, with evidence:
 | **missing**      | The spec doesn't address the criterion                         |
 | **inapplicable** | The criterion doesn't apply to this spec, with a justification |
 
-The spec row in the Specifications view shows its weakest criterion (e.g. "weakest: edge cases"). A spec is **ready to plan** when no criterion is missing. This is a hint only: **Plan tasks** is always available.
+The spec row in the Specifications view shows its weakest criterion (e.g. "weakest: edge cases"). A spec is **ready to plan** when no criterion is missing, and its row then reads "ready to plan" instead. This is a hint only: **Plan tasks** is always available.
 
 ### Review format
 

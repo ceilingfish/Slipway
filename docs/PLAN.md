@@ -1,6 +1,6 @@
 # Implementation Plan
 
-Breaks [PRD.md](PRD.md) down into tasks. Designs are in [plugin-design.zip](plugin-design.zip).
+Breaks [PRD.md](PRD.md) down into tasks. Designs are in [plugin-design.zip](plugin-design.zip). Where the designs and the PRD disagree, the PRD wins (see its User Interface section).
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,7 @@ Tasks 1 and 4 can run in parallel, as can 5 and 6 once their dependencies are do
 ## 2. Specs and storage
 
 - Create `~/.spec-plans` as a git repository on first use, with a `.gitignore` excluding `runs/*.log`
-- Specifications view: flat list of specs from `<repo>/plans/`, with the phase icon from `spec.md` frontmatter, and `spec.md` plus attachments as children
+- Specifications view: flat list of specs from `<repo>/plans/`, with the phase icon from `spec.md` frontmatter, and `spec.md` plus attachments as children, each with its file-type icon
 - **Add** creates a spec with a unique slug; clicking a document opens it in an editor tab
 - **Commit** commits all changes in `~/.spec-plans`; **Refresh**; **Filter** to hide completed specs
 - Define the `spec.md` frontmatter (at least `phase`)
@@ -58,9 +58,9 @@ Tasks 1 and 4 can run in parallel, as can 5 and 6 once their dependencies are do
 - Review prompt: the spec, its attachments and every enabled criterion, with the reviewer returning the `criteria` array from the PRD's review format
 - Save reviews to `reviews/<timestamp>.json`, with document hashes
 - Spinner on the spec while a review runs; **Review maturity** in the spec context menu and the Maturity view title bar
-- Maturity view: latest review, one row per criterion with status and short result; **History** lists earlier reviews
+- Maturity view: latest review, one row per criterion with status and short result; **History** lists earlier reviews. No more menu
 - Review result editor (double-click a criterion): status badge, summary, Gaps and Covered findings
-- White / yellow document labels from the stored hashes; "weakest: …" and "ready to plan" on spec rows
+- White / yellow document labels from the stored hashes; "weakest: …", or "ready to plan" when no criterion is missing, on spec rows
 
 **Done when:** reviewing a spec produces a stored review, the Maturity view and result editor show it, and editing a document turns it yellow.
 
@@ -71,7 +71,8 @@ Tasks 1 and 4 can run in parallel, as can 5 and 6 once their dependencies are do
 - Edit (pencil), delete, drag to reorder, select and merge, **New task**, for tasks that haven't started
 - Started tasks keep their position and serial and can't be deleted or merged, but can be redefined
 - Accept writes `tasks/<serial>-<name>/task.md`, snapshots previous versions into `versions/`, increments versions, records the plan revision in `planning/`, and moves the spec to Planning
-- Tasks node in the Specifications view; yellow labels for tasks altered since their last run
+- No "split" / "merged" tags on tasks or change chips in the conversation
+- Tasks node in the Specifications view (no description); yellow labels for tasks altered since their last run
 
 **Done when:** a spec can be planned, replanned and accepted, with task serials and versions following the PRD.
 
@@ -87,7 +88,7 @@ Tasks 1 and 4 can run in parallel, as can 5 and 6 once their dependencies are do
 
 ## 8. Agent log and task actions
 
-- Agent log editor: runs on the left, the selected run's log on the right, **Cancel** while running
+- Agent log editor: runs on the left with status and start time (no failure reason), the selected run's log as the agent reported it on the right, **Cancel** while running
 - Task context menu: View Log, Open In VS Code (disabled before first start), Mark complete, Remove (pending tasks only)
 - Merge detection with `git branch --merged main`; a task with a removed worktree is complete if merged, otherwise pending
 - Spec moves to Complete when all its tasks are complete
