@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,6 +59,18 @@ const waitFor = async (check: () => Promise<boolean>, attempts = 100): Promise<v
   await waitFor(check, attempts - 1);
 };
 
+const exitSignal = async (child: ChildProcess): Promise<NodeJS.Signals | null> =>
+  new Promise((resolve) => {
+    child.on("exit", (_code, signal) => {
+      resolve(signal);
+    });
+  });
+
+const processesMatching = (marker: string): string[] =>
+  execFileSync("ps", ["-A", "-o", "command="], { encoding: "utf8" })
+    .split("\n")
+    .filter((command) => command.includes(marker));
+
 describe.skipIf(process.platform === "win32")("killProcessTree", () => {
   let dir = "";
 
@@ -70,49 +82,64 @@ describe.skipIf(process.platform === "win32")("killProcessTree", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("kills a grandchild that was moved to its own process group", async () => {
+  // Starts a process that starts a detached grandchild, as Claude does for
+  // tool commands, and waits until the grandchild has run its script.
+  const startTree = async (grandchildScript: string): Promise<[ChildProcess, number]> => {
     const pidFile = join(dir, "grandchild.pid");
-    // The child starts a detached grandchild, as Claude does for tool commands.
+    const ready = `${grandchildScript}; require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`;
     const script = `
       const { spawn } = require("node:child_process");
-      const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: true, stdio: "ignore" });
-      require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(grandchild.pid));
+      spawn(process.execPath, ["-e", ${JSON.stringify(ready)}], { detached: true, stdio: "ignore" });
       setInterval(() => {}, 1000);
     `;
     const child = spawn(process.execPath, ["-e", script], { stdio: "ignore" });
-    const exited = new Promise<NodeJS.Signals | null>((resolve) => {
-      child.on("exit", (_code, signal) => {
-        resolve(signal);
-      });
-    });
-    const childPid = child.pid ?? 0;
-    let grandchildPid = 0;
+    let grandchild = 0;
     await waitFor(async () => {
-      grandchildPid = Number(await readFile(pidFile, "utf8").catch(() => "0"));
-      return grandchildPid > 0;
-    });
+      grandchild = Number(await readFile(pidFile, "utf8").catch(() => "0"));
+      return grandchild > 0;
+    }, 500);
+    return [child, grandchild];
+  };
 
-    await killProcessTree(childPid, 2000);
+  it("kills the process, and asks its descendants in other process groups to stop", async () => {
+    const termFile = join(dir, "terminated");
+    const [child, grandchild] = await startTree(
+      `process.on("SIGTERM", () => { require("node:fs").writeFileSync(${JSON.stringify(termFile)}, ""); process.exit(0); }); setInterval(() => {}, 1000);`,
+    );
+    const exited = exitSignal(child);
 
-    await waitFor(() => Promise.resolve(!isAlive(grandchildPid)));
-    expect(await exited).toBe("SIGTERM");
+    await killProcessTree(child.pid ?? 0, 2000);
+
+    expect(await exited).toBe("SIGKILL");
+    await waitFor(() => Promise.resolve(!isAlive(grandchild)));
+    expect(await readFile(termFile, "utf8")).toBe("");
   });
 
-  it("falls back to SIGKILL for a process that ignores SIGTERM", async () => {
-    const child = spawn(
-      process.execPath,
-      ["-e", 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'],
-      { stdio: "ignore" },
+  it("kills descendants that ignore SIGTERM once the grace period is over", async () => {
+    const [child, grandchild] = await startTree(
+      'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000);',
     );
-    const exited = new Promise<NodeJS.Signals | null>((resolve) => {
-      child.on("exit", (_code, signal) => {
-        resolve(signal);
-      });
-    });
-    await delay(200);
 
     await killProcessTree(child.pid ?? 0, 100);
 
-    expect(await exited).toBe("SIGKILL");
+    await expect(waitFor(() => Promise.resolve(!isAlive(grandchild)))).resolves.toBeUndefined();
+  });
+
+  it("leaves nothing behind when the process keeps starting children", async () => {
+    const marker = `spawn-storm-${String(process.pid)}-${String(Date.now())}`;
+    const script = `
+      const { spawn } = require("node:child_process");
+      setInterval(() => {
+        spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", ${JSON.stringify(marker)}], { detached: true, stdio: "ignore" });
+      }, 5);
+    `;
+    const child = spawn(process.execPath, ["-e", script], { stdio: "ignore" });
+    await waitFor(() => Promise.resolve(processesMatching(marker).length > 5));
+
+    await killProcessTree(child.pid ?? 0, 1000);
+
+    await expect(
+      waitFor(() => Promise.resolve(processesMatching(marker).length === 0)),
+    ).resolves.toBeUndefined();
   });
 });

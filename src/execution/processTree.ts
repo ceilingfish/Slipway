@@ -77,18 +77,40 @@ const waitForExit = async (pids: readonly number[], timeoutMs: number): Promise<
   return waitForExit(pids, timeoutMs - POLL_MS);
 };
 
-const killPosixTree = async (root: number, graceMs: number): Promise<void> => {
-  // Snapshot the tree before signalling: once a parent dies its children are
-  // re-parented to init and can no longer be found from the root.
-  const tree = [root, ...descendantsOf(root, await listProcesses())];
-  for (const pid of tree) {
-    signal(pid, "SIGTERM");
+/**
+ * Stops the root, then every descendant, until no new ones turn up. Stopped
+ * processes can't start more, so the tree can then be killed without a race:
+ * Claude only starts a tool's shell once the command has been approved, which
+ * can be after it has been asked to exit.
+ */
+const freezeTree = async (root: number, frozen: readonly number[] = []): Promise<number[]> => {
+  const found = descendantsOf(root, await listProcesses()).filter((pid) => !frozen.includes(pid));
+  if (found.length === 0) {
+    return [...frozen];
   }
-  if (await waitForExit(tree, graceMs)) {
+  for (const pid of found) {
+    signal(pid, "SIGSTOP");
+  }
+  return freezeTree(root, [...frozen, ...found]);
+};
+
+const killPosixTree = async (root: number, graceMs: number): Promise<void> => {
+  signal(root, "SIGSTOP");
+  // Snapshot the tree while the root is alive: once a parent dies its children
+  // are re-parented to init and can no longer be found from the root.
+  const descendants = await freezeTree(root);
+  // The root gets no chance to shut down, since it could start more processes
+  // doing so. Its descendants (the agent's commands) get SIGTERM first.
+  signal(root, "SIGKILL");
+  for (const pid of descendants) {
+    signal(pid, "SIGTERM");
+    signal(pid, "SIGCONT");
+  }
+  if (await waitForExit(descendants, graceMs)) {
     return;
   }
   const processes = await listProcesses();
-  const survivors = tree.filter(isAlive);
+  const survivors = descendants.filter(isAlive);
   const late = survivors.flatMap((pid) => descendantsOf(pid, processes));
   for (const pid of [...survivors, ...late]) {
     signal(pid, "SIGKILL");
@@ -104,8 +126,9 @@ const killWindowsTree = async (root: number): Promise<void> => {
 };
 
 /**
- * Terminates a process and everything it started. On POSIX each process gets
- * SIGTERM, then SIGKILL if it's still running after `graceMs`.
+ * Terminates a process and everything it started. On POSIX the process is
+ * killed outright, and each of its descendants gets SIGTERM, then SIGKILL if
+ * it's still running after `graceMs`.
  */
 export const killProcessTree = async (root: number, graceMs: number): Promise<void> => {
   await (process.platform === "win32" ? killWindowsTree(root) : killPosixTree(root, graceMs));
